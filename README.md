@@ -1,6 +1,8 @@
 # rmapy
 This is an (unofficial) Remarkable Cloud API Client written in Python, forked from [subutux/rmapy](https://github.com/subutux/rmapy) to add support for new "sync/v3" endpoints.
 
+Still a work-in-progress, with only read-only support currently. But I haven't found another library in 2025 which still works with the Remarkable API -- if you have, please share!
+
 
 ## Walkthrough
 
@@ -9,9 +11,11 @@ $ python3
 >>> from rmapy.api import Client
 >>> from rmapy.types import *
 >>> api: Client = Client()
+
 >>> # This get_root_folder step will take a while while the file structure graph nodes are built.
 >>> root: RootFolder = api.get_root_folder()
->>> # After that, the entire directory tree is traversable.
+
+>>> # After that, the entire directory tree is traversable locally.
 >>> for item in root.contents:
 ...     print(f'* {type(item)}: {item.visibleName}')
 ...     if item.type == 'CollectionType':
@@ -78,11 +82,13 @@ type(file)=<class 'rmapy.types.FileMetaBlob'> type(file.get_blob())=<class 'rmap
 >>> root.contents[0].contents[0].meta_list_blob.files[3]
 FileMetaBlob(hash='54f9c8967e771bfeb3fa4671e54b5321688942d64f2b4547b97cf76da5ba2f98', name='39713454-3265-4cd0-a51b-c09605728c59.pdf', size='1571729', type='FileMetaBlob')
 
+# ...call get_blob() on the pdf file within the document.
+# Note that this is the first outbound network call since the initial get_root_folder().
 >>> str(root.contents[0].contents[0].meta_list_blob.files[3].get_blob())[:100]
 "RawFileBlob(contentType='application/pdf', content=b'%PDF-1.6\\r%\\xe2\\xe3\\xcf\\xd3\\r\\n366 0 obj\\r<</Li"
 
 >>> with open("/tmp/file.pdf", "wb") as f:
->>>     f.write(root.contents[0].contents[0].meta_list_blob.files[3].get_blob().content)
+...     f.write(root.contents[0].contents[0].meta_list_blob.files[3].get_blob().content)
 
 >>> # Note that calling get_blob() on an object is just a wrapper around calling `api.get_blob(hash)`:
 >>> str(api.get_blob('54f9c8967e771bfeb3fa4671e54b5321688942d64f2b4547b97cf76da5ba2f98'))[:100]
