@@ -1,5 +1,7 @@
 import requests
 import json
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
 from logging import getLogger
 from datetime import datetime
 from typing import Union, Optional, Dict, TypedDict, List
@@ -31,6 +33,13 @@ from .const import (RFC3339Nano,
 
 log = getLogger("rmapy")
 
+def requests_session_with_retry():
+    session = requests.Session()
+    retry = Retry(total=3, backoff_factor=0.5)
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('https://', adapter)
+
+    return session
 
 class Client(object):
     """API Client for Remarkable Cloud
@@ -52,6 +61,7 @@ class Client(object):
             self.token_set["devicetoken"] = config["devicetoken"]
         if "usertoken" in config:
             self.token_set["usertoken"] = config["usertoken"]
+        self.session = requests_session_with_retry()
 
     def request(self, method: str, path: str,
                 data=None,
@@ -94,13 +104,13 @@ class Client(object):
         for k in headers.keys():
             _headers[k] = headers[k]
         log.debug(url, _headers)
-        r = requests.request(method, url,
-                             json=body,
-                             data=data,
-                             headers=_headers,
-                             params=params,
-                             stream=stream,
-                             verify=self.verify)
+        r = self.session.request(method, url,
+                            json=body,
+                            data=data,
+                            headers=_headers,
+                            params=params,
+                            stream=stream,
+                            verify=self.verify)
         if r.status_code == 401:
             if retry:
                 log.warn(f"Unauthorized, renewing token: {r.text}")

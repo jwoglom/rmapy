@@ -1,12 +1,18 @@
 from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
-from typing import Union, Optional, Dict, TypedDict, List
+from typing import Union, Optional, Dict, TypedDict, List, Tuple
 from .document import Document
 from logging import getLogger
+import logging
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 
 log = getLogger("rmapy")
+log.setLevel(logging.INFO)
 
 MetaBlob = Dict[str, str]
+
+THREADS = 25
 
 @dataclass_json
 @dataclass
@@ -86,7 +92,7 @@ class Document:
         self.lastModified = self.meta_blob.json.get('lastModified')
         self.lastOpened = self.meta_blob.json.get('lastOpened')
         self.lastOpenedPage = self.meta_blob.json.get('lastOpenedPage')
-        self.parentUuid = self.meta_blob.json.get('parentUuid')
+        self.parentUuid = self.meta_blob.json.get('parent')
         self.pinned = self.meta_blob.json.get('pinned')
         self.type = self.meta_blob.json.get('type')
         self.visibleName = self.meta_blob.json.get('visibleName')
@@ -120,7 +126,7 @@ class Collection:
     def __post_init__(self):
         self.visibleName = self.meta_blob.json.get('visibleName')
         self.type = self.meta_blob.json.get('type')
-        self.parentUuid = self.meta_blob.json.get('parentUuid')
+        self.parentUuid = self.meta_blob.json.get('parent')
         self.lastModified = self.meta_blob.json.get('lastModified')
         self.lastOpened = self.meta_blob.json.get('lastOpened')
         self.lastOpenedPage = self.meta_blob.json.get('lastOpenedPage')
@@ -144,22 +150,24 @@ class RootFolder:
 
     contents: List['DocumentOrCollection'] = field(default_factory=list)
 
-    def __post_init__(self):
-        documents = []
-        collections = {}
-        log.info(f"Root folder traversing {len(self.list_blob.files)} files")
-        for i, file_meta in enumerate(self.list_blob.files):
-            if i % 20 == 0:
-                log.info(f"Root folder traversal {int(i / len(self.list_blob.files) * 100)}% complete...")
-            file_blob = file_meta.get_blob()
-            if file_blob:
-                file_metadata = file_blob.metadata
-                if file_metadata and file_metadata.json:
-                    if file_metadata.json.get('type') == 'DocumentType':
-                        documents.append(Document(uuid=file_meta.name, hash=file_meta.hash, meta_blob=file_metadata, meta_list_blob=file_blob))
-                    elif file_metadata.json.get('type') == 'CollectionType':
-                        collections[file_meta.name] = Collection(uuid=file_meta.name, hash=file_meta.hash, meta_blob=file_metadata)
-        
+    def _process_file_meta(self, file_meta: FileMetaBlob) -> Optional[Tuple[str, Union[Document, Collection]]]:
+        """Process a single file metadata and return the appropriate object if valid."""
+        file_blob = file_meta.get_blob()
+        if not file_blob:
+            return None
+            
+        file_metadata = file_blob.metadata
+        if not file_metadata or not file_metadata.json:
+            return None
+            
+        if file_metadata.json.get('type') == 'DocumentType':
+            return file_meta.name, Document(uuid=file_meta.name, hash=file_meta.hash, meta_blob=file_metadata, meta_list_blob=file_blob)
+        elif file_metadata.json.get('type') == 'CollectionType':
+            return file_meta.name, Collection(uuid=file_meta.name, hash=file_meta.hash, meta_blob=file_metadata)
+        return None
+
+    def _organize_contents(self, documents: List[Document], collections: Dict[str, Collection]) -> None:
+        """Organize documents and collections into their proper hierarchy."""
         # Place files inside folders
         for document in documents:
             if document.parentUuid:
@@ -176,12 +184,34 @@ class RootFolder:
                     continue
                 collections[collection.parentUuid].contents.append(collection)
 
-
         root_collections = list(filter(lambda c: not c.parentUuid, collections.values()))
         root_files = list(filter(lambda f: not f.parentUuid, documents))
-
         self.contents = root_collections + root_files
-    
+
+    def __post_init__(self):
+        documents = []
+        collections = {}
+        log.info(f"Root folder traversing {len(self.list_blob.files)} files")
+        
+        # Process files in parallel
+        with ThreadPoolExecutor(max_workers=THREADS) as executor:
+            future_to_file = {executor.submit(self._process_file_meta, file_meta): file_meta 
+                            for file_meta in self.list_blob.files}
+            
+            for i, future in enumerate(concurrent.futures.as_completed(future_to_file)):
+                if i % 20 == 0:
+                    log.info(f"Root folder traversal {int(i / len(self.list_blob.files) * 100)}% complete...")
+                
+                result = future.result()
+                if result:
+                    name, item = result
+                    if isinstance(item, Document):
+                        documents.append(item)
+                    else:
+                        collections[name] = item
+
+        self._organize_contents(documents, collections)
+
     def reconcile(self):
         new_hash = self.client.get_root_hash()
         if hash == new_hash:
@@ -190,6 +220,7 @@ class RootFolder:
         all_hashes = set()
         documents = []
         collections = {}
+        
         def _traverse_tree(nodes: List[DocumentOrCollection]):
             for node in nodes:
                 all_hashes.add(node.hash)
@@ -202,41 +233,28 @@ class RootFolder:
         
         new_hashes = set()
         creates = []
-        for i, file_meta in enumerate(new_list_blob.files):
-            new_hashes.add(file_meta.hash)
-            if file_meta.hash in all_hashes:
-                continue
-            else:
-                file_blob = file_meta.get_blob()
-                if file_blob:
-                    file_metadata = file_blob.metadata
-                    if file_metadata and file_metadata.json:
-                        if file_metadata.json.get('type') == 'DocumentType':
-                            doc = Document(uuid=file_meta.name, hash=file_meta.hash, meta_blob=file_metadata, meta_list_blob=file_blob)
-                            creates.append(doc)
-                            documents.append(doc)
-                        elif file_metadata.json.get('type') == 'CollectionType':
-                            coll = Collection(uuid=file_meta.name, hash=file_meta.hash, meta_blob=file_metadata)
-                            creates.append(coll)
-                            collections[file_meta.name] = coll
-
-        # (Re-)place old and new files inside existing or new folders
-        for document in documents:
-            if document.parentUuid:
-                if document.parentUuid not in collections:
-                    log.warning(f"Orphaned file: {document=} parent uuid does not exist")
-                    continue
-                if document not in collections[document.parentUuid].contents:
-                    collections[document.parentUuid].contents.append(document)
         
-        # Place new folders inside existing or new folders
-        for collection in collections.values():
-            if collection.parentUuid:
-                if collection.parentUuid not in collections:
-                    log.warning(f"Orphaned collection: {collection=} parent uuid does not exist")
-                    continue
-                if collection not in collections[collection.parentUuid].contents:
-                    collections[collection.parentUuid].contents.append(collection)
+        # Add all new file hashes to new_hashes set
+        for file_meta in new_list_blob.files:
+            new_hashes.add(file_meta.hash)
+        
+        # Process new files in parallel
+        with ThreadPoolExecutor(max_workers=THREADS) as executor:
+            future_to_file = {executor.submit(self._process_file_meta, file_meta): file_meta 
+                            for file_meta in new_list_blob.files 
+                            if file_meta.hash not in all_hashes}
+            
+            for future in concurrent.futures.as_completed(future_to_file):
+                result = future.result()
+                if result:
+                    name, item = result
+                    creates.append(item)
+                    if isinstance(item, Document):
+                        documents.append(item)
+                    else:
+                        collections[name] = item
+
+        self._organize_contents(documents, collections)
 
         orphans = []
         def _remove_orphans(parent: Optional[DocumentOrCollection], nodes: List[DocumentOrCollection]):
@@ -252,7 +270,6 @@ class RootFolder:
                         self.contents.remove(node)
 
         _remove_orphans(None, self.contents)
-
         log.info(f"Reconcile complete: {creates=}, {orphans=}")
 
 
