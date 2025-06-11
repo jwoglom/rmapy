@@ -30,13 +30,13 @@ class Collection(object):
             doc_dict: A dict representing a document or folder.
         """
 
-        if doc_dict.get("Type", None) == "DocumentType":
+        if doc_dict.get("type", None) == "DocumentType":
             self.add_document(doc_dict)
-        elif doc_dict.get("Type", None) == "CollectionType":
+        elif doc_dict.get("type", None) == "CollectionType":
             self.add_folder(doc_dict)
         else:
             raise TypeError("Unsupported type: {_type}"
-                            .format(_type=doc_dict.get("Type", None)))
+                            .format(_type=doc_dict.get("type", None)))
 
     def add_document(self, doc_dict: dict) -> None:
         """Add a document to the collection
@@ -66,7 +66,7 @@ class Collection(object):
             The parent folder.
         """
 
-        results = [i for i in self.items if i.ID == doc_or_folder.ID]
+        results = [i for i in self.items if i.id == doc_or_folder.id]
         if len(results) > 0 and isinstance(results[0], Folder):
             return results[0]
         else:
@@ -83,9 +83,9 @@ class Collection(object):
         """
 
         if folder:
-            return [i for i in self.items if i.Parent == folder.ID]
+            return [i for i in self.items if i.parent == folder.id]
         else:
-            return [i for i in self.items if i.Parent == ""]
+            return [i for i in self.items if i.parent == ""]
 
     def __len__(self) -> int:
         return len(self.items)

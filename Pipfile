@@ -4,11 +4,13 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+ptpython = "*"
 
 [packages]
 requests = "*"
-pyaml = "*"
+pyyaml = "*"
 sphinx = "*"
 urllib3 = ">=1.26.5"
+dataclasses-json = "*"
 
 [requires]

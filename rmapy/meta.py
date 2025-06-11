@@ -5,38 +5,29 @@ class Meta(object):
     This class is used to be subclassed by for new types.
 
     Attributes:
-        ID: Id of the meta object.
-        Version: The version of this object.
-        Success: If the last API Call was a success.
-        BlobURLGet: The url to get the data blob from. Can be empty.
-        BlobURLGetExpires: The expiration date of the Get url.
-        BlobURLPut: The url to upload the data blob to. Can be empty.
-        BlobURLPutExpires: The expiration date of the Put url.
-        ModifiedClient: When the last change was by the client.
-        Type: Currently there are only 2 known types: DocumentType &
+        id: ID of the meta object.
+        hash: Hash of the file contents.
+        type: Currently there are only 2 known types: DocumentType &
             CollectionType.
-        VissibleName: The human name of the object.
-        CurrentPage: The current selected page of the object.
-        Bookmarked: If the object is bookmarked.
-        Parent: If empty, this object is is the root folder. This can be an ID
-            of a CollectionType.
-
+        visibleName: The human name of the object.
+        lastModified: Last modified date (epoch timestamp as a string).
+        lastOpened: Last opened date (epoch timestamp as a string).
+        parent: ID of the object which is this object's parent. If empty,
+            this object is is the root folder. This can be an ID of a
+            CollectionType.
+        pinned: If the object is pinned to this folder.
+        fileType: The file extension of the object, e.g. 'pdf', 'epub', 'notebook'
     """
 
-    ID = ""
-    Version = 0
-    Message = ""
-    Success = True
-    BlobURLGet = ""
-    BlobURLGetExpires = ""
-    BlobURLPut = ""
-    BlobURLPutExpires = ""
-    ModifiedClient = ""
-    Type = ""
-    VissibleName = ""
-    CurrentPage = 1
-    Bookmarked = False
-    Parent = ""
+    id = ""
+    hash = ""
+    type = ""
+    visibleName = ""
+    lastModified = ""
+    lastOpened = ""
+    parent = ""
+    pinned = False
+    fileType = ""
 
     def __init__(self, **kwargs):
         k_keys = self.to_dict().keys()
@@ -53,19 +44,14 @@ class Meta(object):
         """
 
         return {
-            "ID": self.ID,
-            "Version": self.Version,
-            "Message": self.Message,
-            "Success": self.Success,
-            "BlobURLGet": self.BlobURLGet,
-            "BlobURLGetExpires": self.BlobURLGetExpires,
-            "BlobURLPut": self.BlobURLPut,
-            "BlobURLPutExpires": self.BlobURLPutExpires,
-            "ModifiedClient": self.ModifiedClient,
-            "Type": self.Type,
-            "VissibleName": self.VissibleName,
-            "CurrentPage": self.CurrentPage,
-            "Bookmarked": self.Bookmarked,
-            "Parent": self.Parent
+            "id": self.id,
+            "hash": self.hash,
+            "parent": self.parent,
+            "fileType": self.fileType,
+            "pinned": self.pinned,
+            "type": self.type,
+            "visibleName": self.visibleName,
+            "lastOpened": self.lastOpened,
+            "lastModified": self.lastModified
         }
 

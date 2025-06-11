@@ -1,5 +1,5 @@
 requests
-pyaml==19.4.1
+pyyaml==6.0.2
 sphinx==2.2.0
 sphinx-autodoc-typehints==1.8.0
 guzzle-sphinx-theme==0.7.11

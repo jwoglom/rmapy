@@ -4,4 +4,6 @@ AUTH_BASE_URL = "https://webapp-prod.cloud.remarkable.engineering"
 BASE_URL = "https://internal.cloud.remarkable.com"
 DEVICE_TOKEN_URL = AUTH_BASE_URL + "/token/json/2/device/new"
 USER_TOKEN_URL = AUTH_BASE_URL + "/token/json/2/user/new"
+# Note this does not appear to be an EU-specific domain
+TECTONIC_URL = "https://eu.tectonic.remarkable.com"
 DEVICE = "desktop-windows"
