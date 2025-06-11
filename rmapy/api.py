@@ -267,6 +267,12 @@ class Client(object):
                     client = self,
                     files = items
                 )
+            else:
+                return RawFileBlob(
+                    client = self,
+                    contentType = contentType,
+                    content = response.content
+                )
         else:
             return RawFileBlob(
                 client = self,
