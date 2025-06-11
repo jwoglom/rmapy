@@ -168,6 +168,12 @@ class RootFolder:
 
     def _organize_contents(self, documents: List[Document], collections: Dict[str, Collection]) -> None:
         """Organize documents and collections into their proper hierarchy."""
+
+        # Add a fake collection for "trash" which is referenced by some children for deleted but recoverable items
+        if 'trash' not in collections.keys():
+            collections['trash'] = Collection(uuid='trash', hash='', meta_blob=RawJsonBlob(json={}), client=None)
+
+
         # Place files inside folders
         for document in documents:
             if document.parentUuid:
@@ -183,6 +189,9 @@ class RootFolder:
                     log.warning(f"Orphaned collection: {collection=} parent uuid does not exist")
                     continue
                 collections[collection.parentUuid].contents.append(collection)
+        
+        # Hide the trash
+        del collections['trash']
 
         root_collections = list(filter(lambda c: not c.parentUuid, collections.values()))
         root_files = list(filter(lambda f: not f.parentUuid, documents))
@@ -234,7 +243,6 @@ class RootFolder:
         new_hashes = set()
         creates = []
         
-        # Add all new file hashes to new_hashes set
         for file_meta in new_list_blob.files:
             new_hashes.add(file_meta.hash)
         
