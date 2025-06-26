@@ -180,7 +180,8 @@ class RootFolder:
                 if document.parentUuid not in collections:
                     log.warning(f"Orphaned file: {document=} parent uuid does not exist")
                     continue
-                collections[document.parentUuid].contents.append(document)
+                if document not in collections[document.parentUuid].contents:
+                    collections[document.parentUuid].contents.append(document)
         
         # Place folders inside folders
         for collection in collections.values():
@@ -188,7 +189,8 @@ class RootFolder:
                 if collection.parentUuid not in collections:
                     log.warning(f"Orphaned collection: {collection=} parent uuid does not exist")
                     continue
-                collections[collection.parentUuid].contents.append(collection)
+                if collection not in collections[collection.parentUuid].contents:
+                    collections[collection.parentUuid].contents.append(collection)
         
         # Hide the trash
         del collections['trash']
@@ -215,7 +217,8 @@ class RootFolder:
                 if result:
                     name, item = result
                     if isinstance(item, Document):
-                        documents.append(item)
+                        if item not in documents:
+                            documents.append(item)
                     else:
                         collections[name] = item
 
@@ -223,7 +226,7 @@ class RootFolder:
 
     def reconcile(self):
         new_hash = self.client.get_root_hash()
-        if hash == new_hash:
+        if self.hash == new_hash:
             return
         new_list_blob = self.client.get_blob(new_hash)
         all_hashes = set()
@@ -237,7 +240,8 @@ class RootFolder:
                     _traverse_tree(node.contents)
                     collections[node.uuid] = node
                 else:
-                    documents.append(node)
+                    if node not in documents:
+                        documents.append(node)
         _traverse_tree(self.contents)
         
         new_hashes = set()
@@ -257,10 +261,11 @@ class RootFolder:
                 if result:
                     name, item = result
                     creates.append(item)
-                    if isinstance(item, Document):
-                        documents.append(item)
-                    else:
+                    if isinstance(item, Collection):
                         collections[name] = item
+                    else:
+                        if item not in documents:
+                            documents.append(item)
 
         self._organize_contents(documents, collections)
 
@@ -279,6 +284,7 @@ class RootFolder:
 
         _remove_orphans(None, self.contents)
         log.info(f"Reconcile complete: {creates=}, {orphans=}")
+        return True, {"creates": creates, "orphans": orphans}
 
 
 
